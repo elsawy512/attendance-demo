@@ -44,7 +44,6 @@
       overflow-x: hidden;
     }
 
-    /* LOGO */
     .logo-header {
       width:100%; max-width:420px;
       display:flex; align-items:center; justify-content:center;
@@ -53,7 +52,6 @@
     }
     .logo-header img { height:44px; width:auto; object-fit:contain; }
 
-    /* TOP BAR */
     .topbar {
       width:100%; max-width:420px;
       display:flex; justify-content:space-between; align-items:flex-start;
@@ -72,7 +70,6 @@
     .clock-ampm   { font-family:var(--mono); font-size:0.72rem; color:var(--blue); font-weight:700; }
     .clock-date   { font-size:0.72rem; color:var(--muted); margin-top:4px; }
 
-    /* SHIFT BAR */
     .shift-bar {
       width:100%; max-width:420px;
       background:var(--surface); border:1px solid var(--border);
@@ -84,7 +81,6 @@
     .shift-label { color:var(--muted); font-size:0.58rem; text-transform:uppercase; letter-spacing:1px; }
     .shift-value { color:var(--text); }
 
-    /* CHECKLIST BAR */
     .checklist {
       width:100%; max-width:420px;
       display:flex; gap:8px; margin-bottom:14px;
@@ -103,7 +99,6 @@
     .check-item.wait  { border-color:var(--amber);  color:var(--amber); }
     .check-icon       { font-size:1rem; }
 
-    /* CARDS */
     .card {
       width:100%; max-width:420px;
       background:var(--surface); border:1px solid var(--border);
@@ -115,7 +110,6 @@
       letter-spacing:1.5px; margin-bottom:10px;
     }
 
-    /* DROPDOWN */
     .select-wrap { position:relative; }
     .select-wrap::after {
       content:'▾'; position:absolute; right:14px; top:50%;
@@ -148,7 +142,6 @@
       border-radius:50%; animation:spin 0.7s linear infinite; flex-shrink:0;
     }
 
-    /* CAMERA */
     .cam-wrap {
       width:100%; aspect-ratio:1/1;
       border-radius:10px; overflow:hidden; background:#000;
@@ -165,7 +158,6 @@
     }
     #canvas { display:none; }
 
-    /* GPS */
     .gps-line {
       font-family:var(--mono); font-size:0.65rem;
       color:var(--muted); text-align:center; margin-top:6px; min-height:16px;
@@ -174,7 +166,6 @@
     .gps-line.gps-fail { color:var(--red); }
     .gps-line.gps-wait { color:var(--amber); }
 
-    /* BUTTONS */
     .btn {
       width:100%; padding:13px; border-radius:10px; border:none;
       font-family:var(--mono); font-size:0.8rem; font-weight:700;
@@ -191,7 +182,6 @@
     .action-row      { display:flex; gap:10px; }
     .action-row .btn { flex:1; }
 
-    /* STATUS */
     .status-box {
       border-radius:10px; padding:12px 14px;
       font-size:0.82rem; line-height:1.6;
@@ -204,7 +194,6 @@
     .s-warning { background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); color:#fbbf24; }
     .s-info    { background:rgba(61,142,248,0.1); border:1px solid rgba(61,142,248,0.3); color:#60a5fa; }
 
-    /* LOADING */
     .loading-row {
       display:none; align-items:center; justify-content:center;
       gap:8px; padding:12px; font-family:var(--mono); font-size:0.72rem; color:var(--muted);
@@ -217,7 +206,6 @@
     }
     @keyframes spin { to{transform:rotate(360deg)} }
 
-    /* FOOTER */
     .footer {
       margin-top:20px; font-family:var(--mono);
       font-size:0.58rem; color:var(--muted); text-align:center; line-height:1.9;
@@ -228,12 +216,10 @@
 
 <body>
 
-  <!-- Logo -->
   <div class="logo-header">
     <img src="logo.png" alt="VirtuTech EG" />
   </div>
 
-  <!-- Top Bar -->
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-title">Field Attendance</div>
@@ -251,43 +237,38 @@
     </div>
   </div>
 
-  <!-- Shift Bar -->
+  <!-- Shift Bar — filled dynamically from sheet -->
   <div class="shift-bar">
     <div class="shift-item">
       <span class="shift-label">Shift Start</span>
-      <span class="shift-value">09:00 AM</span>
+      <span class="shift-value" id="disp-start">--:--</span>
     </div>
     <div class="shift-item" style="text-align:center">
       <span class="shift-label">Grace</span>
-      <span class="shift-value">+5 min</span>
+      <span class="shift-value" id="disp-grace">-- min</span>
     </div>
     <div class="shift-item" style="text-align:center">
       <span class="shift-label">Shift End</span>
-      <span class="shift-value">05:00 PM</span>
+      <span class="shift-value" id="disp-end">--:--</span>
     </div>
     <div class="shift-item" style="text-align:right">
-      <span class="shift-label">OT After</span>
-      <span class="shift-value">+15 min</span>
+      <span class="shift-label">Day Off</span>
+      <span class="shift-value" id="disp-dayoff">---</span>
     </div>
   </div>
 
-  <!-- Readiness Checklist -->
   <div class="checklist">
     <div class="check-item wait" id="chk-name">
-      <span class="check-icon">👤</span>
-      <span>Name</span>
+      <span class="check-icon">👤</span><span>Name</span>
     </div>
     <div class="check-item wait" id="chk-photo">
-      <span class="check-icon">📷</span>
-      <span>Photo</span>
+      <span class="check-icon">📷</span><span>Photo</span>
     </div>
     <div class="check-item wait" id="chk-gps">
-      <span class="check-icon">📍</span>
-      <span>GPS</span>
+      <span class="check-icon">📍</span><span>GPS</span>
     </div>
   </div>
 
-  <!-- Employee Dropdown -->
   <div class="card">
     <div class="card-label">Select Employee — اختر الموظف</div>
     <div class="select-wrap">
@@ -301,7 +282,6 @@
     </div>
   </div>
 
-  <!-- Camera -->
   <div class="card">
     <div class="card-label">Selfie — صورة شخصية</div>
     <div class="cam-wrap" id="cam-wrap">
@@ -310,51 +290,94 @@
       <div class="cam-overlay" id="cam-hint">Position your face — ضع وجهك في الإطار</div>
     </div>
     <canvas id="canvas"></canvas>
-
     <button class="btn btn-capture" id="capture-btn" onclick="capturePhoto()">Take Photo — التقط صورة</button>
     <button class="btn btn-retake"  id="retake-btn"  onclick="retakePhoto()" style="display:none">Retake — أعد الصورة</button>
-
     <div class="gps-line gps-wait" id="gps-status">GPS: waiting... — جاري تحديد الموقع</div>
   </div>
 
-  <!-- Actions -->
   <div class="card">
     <div class="action-row">
       <button class="btn btn-checkin"  id="checkin-btn"  onclick="submit('checkin')"  disabled>Check In — حضور</button>
       <button class="btn btn-checkout" id="checkout-btn" onclick="submit('checkout')" disabled>Check Out — انصراف</button>
     </div>
-
     <div class="loading-row" id="loading">
       <div class="spinner"></div>
       <span>Submitting... — جاري الإرسال</span>
     </div>
-
     <div class="status-box" id="status-box"></div>
   </div>
 
   <div class="footer">
     <span class="brand">VirtuTech EG</span> — Field Attendance System<br>
-    Shift: Sat–Thu &nbsp;|&nbsp; 01:00 PM – 8:00 PM &nbsp;|&nbsp; Friday Off
+    <span id="footer-shift">Loading shift info...</span>
   </div>
 
   <script>
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxYfcLm7nN_2Rh7aG2cn0GGA_VN16RfcQyMJSzTZiZUhlwKiDdNEAzcDrB1wRxh9EjP/exec';
+    // ── Only this line needs to change when you redeploy ──
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwu5cooBsLwbkZC4NJPkmHxtt7fW6e_Zp-apCtOu1OMN_K2H-DB8l7SJWf9P7dMwVS6/exec';
+
+    // ── Settings loaded from sheet ────────────────────────
+    let CFG = {
+      shiftStart:  13 * 60,
+      shiftEnd:    20 * 60,
+      graceLate:   5,
+      overtimeMin: 15,
+      earlyLeave:  0,
+      dayOff:      'Friday',
+      timezone:    'Africa/Cairo'
+    };
 
     let photoData = null;
     let gpsData   = null;
     let gpsReady  = false;
     let camStream = null;
 
-    // ── Checklist state ──
+    // ── Convert minutes to display time e.g. 780 → "01:00 PM" ──
+    function minToDisplay(min) {
+      const h    = Math.floor(min / 60);
+      const m    = String(min % 60).padStart(2, '0');
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const h12  = String(h % 12 || 12).padStart(2, '0');
+      return `${h12}:${m} ${ampm}`;
+    }
+
+    // ── Load settings from sheet ──────────────────────────
+    async function loadSettings() {
+      try {
+        const res  = await fetch(`${SCRIPT_URL}?action=settings`);
+        const data = await res.json();
+        if (data.success) {
+          CFG = data;
+          // Update shift bar display
+          document.getElementById('disp-start').textContent  = minToDisplay(CFG.shiftStart);
+          document.getElementById('disp-end').textContent    = minToDisplay(CFG.shiftEnd);
+          document.getElementById('disp-grace').textContent  = `+${CFG.graceLate} min`;
+          document.getElementById('disp-dayoff').textContent = CFG.dayOff;
+          // Update footer
+          document.getElementById('footer-shift').textContent =
+            `Shift: ${minToDisplay(CFG.shiftStart)} – ${minToDisplay(CFG.shiftEnd)}  |  ${CFG.dayOff} Off`;
+        }
+      } catch (e) {
+        // Use defaults silently if fetch fails
+      }
+    }
+
+    // ── Check if today is day off ─────────────────────────
+    function isTodayDayOff() {
+      const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      const today = days[new Date().getDay()];
+      return today.toLowerCase() === (CFG.dayOff || '').trim().toLowerCase();
+    }
+
+    // ── Checklist state ───────────────────────────────────
     function setCheck(id, state) {
-      // state: 'ok' | 'fail' | 'wait'
-      const el = document.getElementById(id);
+      const el    = document.getElementById(id);
       el.className = `check-item ${state}`;
-      const icons = { ok:'✅', fail:'❌', wait: id==='chk-gps'?'📍': id==='chk-photo'?'📷':'👤' };
+      const icons  = { ok:'✅', fail:'❌', wait: id==='chk-gps'?'📍': id==='chk-photo'?'📷':'👤' };
       el.querySelector('.check-icon').textContent = icons[state];
     }
 
-    // ── Load employees ──
+    // ── Load employees ────────────────────────────────────
     async function loadEmployees() {
       const select = document.getElementById('employee-name');
       const status = document.getElementById('emp-status');
@@ -390,7 +413,7 @@
       }
     }
 
-    // ── Clock ──
+    // ── Clock ─────────────────────────────────────────────
     function tick() {
       const now  = new Date();
       let   h    = now.getHours();
@@ -407,12 +430,15 @@
       document.getElementById('clock-date').textContent =
         `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
 
-      if (now.getDay() === 5) showStatus('Friday is a day off.\nالجمعة إجازة أسبوعية.', 'warning');
+      // Day off warning — reads from CFG dynamically
+      if (isTodayDayOff()) {
+        showStatus(`${CFG.dayOff} is a day off.\n${CFG.dayOff} إجازة أسبوعية.`, 'warning');
+      }
     }
     setInterval(tick, 1000);
     tick();
 
-    // ── Camera ──
+    // ── Camera ────────────────────────────────────────────
     async function startCamera() {
       try {
         camStream = await navigator.mediaDevices.getUserMedia({
@@ -420,7 +446,7 @@
           audio: false
         });
         const video = document.getElementById('video');
-        video.srcObject    = camStream;
+        video.srcObject     = camStream;
         video.style.display = 'block';
         document.getElementById('cam-hint').textContent = 'Position your face — ضع وجهك في الإطار';
       } catch {
@@ -479,11 +505,11 @@
       startCamera();
     }
 
-    // ── GPS ──
+    // ── GPS ───────────────────────────────────────────────
     function getGPS() {
-      const gpsEl = document.getElementById('gps-status');
-      gpsEl.className   = 'gps-line gps-wait';
-      gpsEl.textContent = 'GPS: acquiring... — جاري تحديد الموقع';
+      const gpsEl           = document.getElementById('gps-status');
+      gpsEl.className       = 'gps-line gps-wait';
+      gpsEl.textContent     = 'GPS: acquiring... — جاري تحديد الموقع';
       setCheck('chk-gps', 'wait');
 
       if (!navigator.geolocation) {
@@ -503,7 +529,7 @@
           updateButtons();
         },
         () => {
-          gpsReady = false;
+          gpsReady          = false;
           gpsEl.className   = 'gps-line gps-fail';
           gpsEl.textContent = '✗ GPS denied — تم رفض الموقع';
           setCheck('chk-gps', 'fail');
@@ -513,14 +539,14 @@
       );
     }
 
-    // ── Name change ──
+    // ── Name change ───────────────────────────────────────
     function onNameChange() {
       const name = document.getElementById('employee-name').value;
       setCheck('chk-name', name ? 'ok' : 'wait');
       updateButtons();
     }
 
-    // ── Button state — all 3 required ──
+    // ── Button state ──────────────────────────────────────
     function updateButtons() {
       const name  = document.getElementById('employee-name').value;
       const ready = name !== '' && photoData !== null && gpsReady;
@@ -528,12 +554,11 @@
       document.getElementById('checkout-btn').disabled = !ready;
     }
 
-    // ── Submit ──
+    // ── Submit ────────────────────────────────────────────
     async function submit(type) {
       const now  = new Date();
       const name = document.getElementById('employee-name').value;
 
-      // Client-side guard
       if (!name) {
         showStatus('Select your name first.\nاختر اسمك أولاً.', 'error'); return;
       }
@@ -547,8 +572,11 @@
         );
         return;
       }
-      if (now.getDay() === 5) {
-        showStatus('Friday is a day off.\nالجمعة إجازة أسبوعية.', 'warning'); return;
+
+      // Day off check — reads from CFG dynamically
+      if (isTodayDayOff()) {
+        showStatus(`${CFG.dayOff} is a day off.\n${CFG.dayOff} إجازة أسبوعية.`, 'warning');
+        return;
       }
 
       setLoading(true);
@@ -586,7 +614,7 @@
     }
 
     function showStatus(msg, type) {
-      const box = document.getElementById('status-box');
+      const box      = document.getElementById('status-box');
       box.textContent = msg;
       box.className   = `status-box show s-${type}`;
     }
@@ -599,6 +627,8 @@
       navigator.serviceWorker.register('sw.js').catch(() => {});
     }
 
+    // ── Init ──────────────────────────────────────────────
+    loadSettings();
     startCamera();
     loadEmployees();
   </script>
