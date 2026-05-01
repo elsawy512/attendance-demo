@@ -431,7 +431,7 @@
         `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
 
       // Day off warning — reads from CFG dynamically
-      if (isTodayDayOff()) {
+      if (settingsLoaded && isTodayDayOff()) {
         showStatus(`${CFG.dayOff} is a day off.\n${CFG.dayOff} إجازة أسبوعية.`, 'warning');
       }
     }
