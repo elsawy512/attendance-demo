@@ -237,6 +237,638 @@
     </div>
   </div>
 
+  <div class="shift-bar">
+    <div class="shift-item">
+      <span class="shift-label">Shift Start</span>
+      <span class="shift-value" id="disp-start">--:--</span>
+    </div>
+    <div class="shift-item" style="text-align:center">
+      <span class="shift-label">Grace</span>
+      <span class="shift-value" id="disp-grace">-- min</span>
+    </div>
+    <div class="shift-item" style="text-align:center">
+      <span class="shift-label">Shift End</span>
+      <span class="shift-value" id="disp-end">--:--</span>
+    </div>
+    <div class="shift-item" style="text-align:right">
+      <span class="shift-label">Day Off</span>
+      <span class="shift-value" id="disp-dayoff">---</span>
+    </div>
+  </div>
+
+  <div class="checklist">
+    <div class="check-item wait" id="chk-name">
+      <span class="check-icon">👤</span><span>Name</span>
+    </div>
+    <div class="check-item wait" id="chk-photo">
+      <span class="check-icon">📷</span><span>Photo</span>
+    </div>
+    <div class="check-item wait" id="chk-gps">
+      <span class="check-icon">📍</span><span>GPS</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Select Employee — اختر الموظف</div>
+    <div class="select-wrap">
+      <select id="employee-name" onchange="onNameChange()" disabled>
+        <option value="">Loading...</option>
+      </select>
+    </div>
+    <div class="emp-status" id="emp-status">
+      <div class="mini-spin"></div>
+      <span>Loading from sheet...</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Selfie — صورة شخصية</div>
+    <div class="cam-wrap" id="cam-wrap">
+      <video id="video" autoplay playsinline muted></video>
+      <img id="photo-preview" alt="Your photo" />
+      <div class="cam-overlay" id="cam-hint">Position your face — ضع وجهك في الإطار</div>
+    </div>
+    <canvas id="canvas"></canvas>
+    <button class="btn btn-capture" id="capture-btn" onclick="capturePhoto()">Take Photo — التقط صورة</button>
+    <button class="btn btn-retake"  id="retake-btn"  onclick="retakePhoto()" style="display:none">Retake — أعد الصورة</button>
+    <div class="gps-line gps-wait" id="gps-status">GPS: waiting... — جاري تحديد الموقع</div>
+  </div>
+
+  <div class="card">
+    <div class="action-row">
+      <button class="btn btn-checkin"  id="checkin-btn"  onclick="submit('checkin')"  disabled>Check In — حضور</button>
+      <button class="btn btn-checkout" id="checkout-btn" onclick="submit('checkout')" disabled>Check Out — انصراف</button>
+    </div>
+    <div class="loading-row" id="loading">
+      <div class="spinner"></div>
+      <span>Submitting... — جاري الإرسال</span>
+    </div>
+    <div class="status-box" id="status-box"></div>
+  </div>
+
+  <div class="footer">
+    <span class="brand">VirtuTech EG</span> — Field Attendance System<br>
+    <span id="footer-shift">Loading shift info...</span>
+  </div>
+
+  <script>
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxYfcLm7nN_2Rh7aG2cn0GGA_VN16RfcQyMJSzTZiZUhlwKiDdNEAzcDrB1wRxh9EjP/exec';
+
+    // ── State ─────────────────────────────────────────────
+    let CFG = {
+      shiftStart:  13 * 60,
+      shiftEnd:    20 * 60,
+      graceLate:   5,
+      overtimeMin: 15,
+      earlyLeave:  0,
+      dayOff:      'Friday',
+      timezone:    'Africa/Cairo'
+    };
+
+    let settingsLoaded = false;  // FIX: prevents day-off warning before settings load
+    let photoData      = null;
+    let gpsData        = null;
+    let gpsReady       = false;
+    let camStream      = null;
+
+    // ── Helpers ───────────────────────────────────────────
+    function minToDisplay(min) {
+      const h    = Math.floor(min / 60);
+      const m    = String(min % 60).padStart(2, '0');
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const h12  = String(h % 12 || 12).padStart(2, '0');
+      return `${h12}:${m} ${ampm}`;
+    }
+
+    function isTodayDayOff() {
+      const days  = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      const today = days[new Date().getDay()];
+      return today.toLowerCase() === (CFG.dayOff || '').trim().toLowerCase();
+    }
+
+    // ── Load settings from sheet ──────────────────────────
+    async function loadSettings() {
+      try {
+        const res  = await fetch(`${SCRIPT_URL}?action=settings`);
+        const data = await res.json();
+        if (data.success) {
+          CFG            = data;
+          settingsLoaded = true;  // FIX: mark loaded before updating UI
+
+          document.getElementById('disp-start').textContent  = minToDisplay(CFG.shiftStart);
+          document.getElementById('disp-end').textContent    = minToDisplay(CFG.shiftEnd);
+          document.getElementById('disp-grace').textContent  = `+${CFG.graceLate} min`;
+          document.getElementById('disp-dayoff').textContent = CFG.dayOff;
+          document.getElementById('footer-shift').textContent =
+            `Shift: ${minToDisplay(CFG.shiftStart)} – ${minToDisplay(CFG.shiftEnd)}  |  ${CFG.dayOff} Off`;
+
+          // Check day off only after settings loaded
+          if (isTodayDayOff()) {
+            showStatus(`${CFG.dayOff} is a day off.\n${CFG.dayOff} إجازة أسبوعية.`, 'warning');
+          }
+        }
+      } catch (e) {
+        // Use defaults silently
+      }
+    }
+
+    // ── Checklist ─────────────────────────────────────────
+    function setCheck(id, state) {
+      const el    = document.getElementById(id);
+      el.className = `check-item ${state}`;
+      const icons  = { ok:'✅', fail:'❌', wait: id==='chk-gps'?'📍': id==='chk-photo'?'📷':'👤' };
+      el.querySelector('.check-icon').textContent = icons[state];
+    }
+
+    // ── Load employees ────────────────────────────────────
+    async function loadEmployees() {
+      const select = document.getElementById('employee-name');
+      const status = document.getElementById('emp-status');
+
+      select.disabled  = true;
+      select.innerHTML = '<option value="">Loading...</option>';
+      status.innerHTML = '<div class="mini-spin"></div><span>Loading from sheet...</span>';
+
+      try {
+        const res  = await fetch(SCRIPT_URL, { method: 'GET' });
+        const data = await res.json();
+
+        if (data.success && data.employees.length > 0) {
+          select.innerHTML = '<option value="">— Select your name — اختر اسمك —</option>';
+          data.employees.forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = opt.textContent = name;
+            select.appendChild(opt);
+          });
+          select.disabled = false;
+          status.innerHTML =
+            `<span style="color:var(--green)">✓</span>
+             <span>${data.employees.length} employees loaded</span>
+             <button class="emp-reload" onclick="loadEmployees()">Reload</button>`;
+        } else {
+          throw new Error('empty');
+        }
+      } catch {
+        select.innerHTML = '<option value="">Failed to load</option>';
+        status.innerHTML =
+          `<span style="color:var(--red)">✗ Could not load</span>
+           <button class="emp-reload" onclick="loadEmployees()">Retry</button>`;
+      }
+    }
+
+    // ── Clock — no day-off check here anymore ─────────────
+    function tick() {
+      const now  = new Date();
+      let   h    = now.getHours();
+      const m    = String(now.getMinutes()).padStart(2, '0');
+      const s    = String(now.getSeconds()).padStart(2, '0');
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12 || 12;
+
+      document.getElementById('clock').textContent = `${String(h).padStart(2,'0')}:${m}:${s}`;
+      document.getElementById('ampm').textContent  = ampm;
+
+      const days   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      document.getElementById('clock-date').textContent =
+        `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+    }
+    setInterval(tick, 1000);
+    tick();
+
+    // ── Camera ────────────────────────────────────────────
+    async function startCamera() {
+      try {
+        camStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width:{ideal:480}, height:{ideal:480} },
+          audio: false
+        });
+        const video = document.getElementById('video');
+        video.srcObject     = camStream;
+        video.style.display = 'block';
+        document.getElementById('cam-hint').textContent = 'Position your face — ضع وجهك في الإطار';
+      } catch {
+        showStatus(
+          'Camera access denied. Allow camera in browser settings.\nتم رفض الكاميرا. يرجى السماح لها من إعدادات المتصفح.',
+          'error'
+        );
+        document.getElementById('capture-btn').disabled = true;
+        setCheck('chk-photo', 'fail');
+      }
+    }
+
+    function capturePhoto() {
+      const video   = document.getElementById('video');
+      const canvas  = document.getElementById('canvas');
+      const preview = document.getElementById('photo-preview');
+
+      canvas.width  = 480;
+      canvas.height = 480;
+
+      const ctx = canvas.getContext('2d');
+      ctx.save();
+      ctx.translate(480, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, 0, 0, 480, 480);
+      ctx.restore();
+
+      photoData = canvas.toDataURL('image/jpeg', 0.65);
+
+      preview.src            = photoData;
+      preview.style.display  = 'block';
+      video.style.display    = 'none';
+
+      document.getElementById('capture-btn').style.display = 'none';
+      document.getElementById('retake-btn').style.display  = 'block';
+      document.getElementById('cam-hint').textContent      = '✓ Photo taken — تم التقاط الصورة';
+      document.getElementById('cam-wrap').classList.add('photo-ok');
+
+      if (camStream) camStream.getTracks().forEach(t => t.stop());
+
+      setCheck('chk-photo', 'ok');
+      getGPS();
+      updateButtons();
+    }
+
+    function retakePhoto() {
+      photoData = null;
+      document.getElementById('photo-preview').style.display = 'none';
+      document.getElementById('capture-btn').style.display   = 'block';
+      document.getElementById('retake-btn').style.display    = 'none';
+      document.getElementById('cam-hint').textContent        = 'Position your face — ضع وجهك في الإطار';
+      document.getElementById('cam-wrap').classList.remove('photo-ok');
+      setCheck('chk-photo', 'wait');
+      hideStatus();
+      updateButtons();
+      startCamera();
+    }
+
+    // ── GPS ───────────────────────────────────────────────
+    function getGPS() {
+      const gpsEl       = document.getElementById('gps-status');
+      gpsEl.className   = 'gps-line gps-wait';
+      gpsEl.textContent = 'GPS: acquiring... — جاري تحديد الموقع';
+      setCheck('chk-gps', 'wait');
+
+      if (!navigator.geolocation) {
+        gpsEl.className   = 'gps-line gps-fail';
+        gpsEl.textContent = 'GPS: not supported — الموقع غير مدعوم';
+        setCheck('chk-gps', 'fail');
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          gpsData  = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          gpsReady = true;
+          gpsEl.className   = 'gps-line gps-ok';
+          gpsEl.textContent = `✓ GPS: ${gpsData.lat.toFixed(5)}, ${gpsData.lng.toFixed(5)}`;
+          setCheck('chk-gps', 'ok');
+          updateButtons();
+        },
+        () => {
+          gpsReady          = false;
+          gpsEl.className   = 'gps-line gps-fail';
+          gpsEl.textContent = '✗ GPS denied — تم رفض الموقع';
+          setCheck('chk-gps', 'fail');
+          updateButtons();
+        },
+        { timeout: 15000, enableHighAccuracy: true }
+      );
+    }
+
+    // ── Name change ───────────────────────────────────────
+    function onNameChange() {
+      const name = document.getElementById('employee-name').value;
+      setCheck('chk-name', name ? 'ok' : 'wait');
+      updateButtons();
+    }
+
+    // ── Button state ──────────────────────────────────────
+    function updateButtons() {
+      const name  = document.getElementById('employee-name').value;
+      const ready = name !== '' && photoData !== null && gpsReady;
+      document.getElementById('checkin-btn').disabled  = !ready;
+      document.getElementById('checkout-btn').disabled = !ready;
+    }
+
+    // ── Submit ────────────────────────────────────────────
+    async function submit(type) {
+      const now  = new Date();
+      const name = document.getElementById('employee-name').value;
+
+      if (!name) {
+        showStatus('Select your name first.\nاختر اسمك أولاً.', 'error'); return;
+      }
+      if (!photoData) {
+        showStatus('Take a selfie first.\nيرجى التقاط صورة أولاً.', 'error'); return;
+      }
+      if (!gpsReady || !gpsData) {
+        showStatus(
+          'GPS location is required. Allow location and retake photo.\nالموقع الجغرافي مطلوب. يرجى السماح بالموقع والمحاولة مرة أخرى.',
+          'error'
+        );
+        return;
+      }
+      if (isTodayDayOff()) {
+        showStatus(`${CFG.dayOff} is a day off.\n${CFG.dayOff} إجازة أسبوعية.`, 'warning');
+        return;
+      }
+
+      setLoading(true);
+
+      try {
+        const payload = {
+          name, type, photo: photoData,
+          lat: gpsData.lat, lng: gpsData.lng,
+          timestamp: now.toISOString()
+        };
+
+        const res    = await fetch(SCRIPT_URL, {
+          method:  'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body:    JSON.stringify(payload)
+        });
+
+        const result = await res.json();
+        showStatus(result.message, result.success ? 'success' : 'error');
+
+      } catch {
+        showStatus(
+          'Connection error. Check your internet and try again.\nخطأ في الاتصال. تحقق من الإنترنت وحاول مرة أخرى.',
+          'error'
+        );
+      }
+
+      setLoading(false);
+    }
+
+    function setLoading(on) {
+      document.getElementById('loading').classList.toggle('show', on);
+      document.getElementById('checkin-btn').disabled  = on;
+      document.getElementById('checkout-btn').disabled = on;
+    }
+
+    function showStatus(msg, type) {
+      const box       = document.getElementById('status-box');
+      box.textContent = msg;
+      box.className   = `status-box show s-${type}`;
+    }
+
+    function hideStatus() {
+      document.getElementById('status-box').className = 'status-box';
+    }
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+
+    // ── Init ──────────────────────────────────────────────
+    loadSettings();
+    startCamera();
+    loadEmployees();
+  </script>
+
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0a0a14" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  <meta name="apple-mobile-web-app-title" content="Attendance" />
+  <title>VirtuTech EG — Attendance</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;600&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg:       #0a0a14;
+      --surface:  #12121f;
+      --surface2: #1a1a2e;
+      --border:   rgba(255,255,255,0.07);
+      --blue:     #00b4f0;
+      --green:    #22c55e;
+      --red:      #ef4444;
+      --amber:    #f59e0b;
+      --text:     #e8e8f0;
+      --muted:    #6b6b8a;
+      --mono:     'Space Mono', monospace;
+      --sans:     'DM Sans', sans-serif;
+    }
+
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px 16px 40px;
+      overflow-x: hidden;
+    }
+
+    .logo-header {
+      width:100%; max-width:420px;
+      display:flex; align-items:center; justify-content:center;
+      padding:14px 0 12px; margin-bottom:4px;
+      border-bottom:1px solid var(--border);
+    }
+    .logo-header img { height:44px; width:auto; object-fit:contain; }
+
+    .topbar {
+      width:100%; max-width:420px;
+      display:flex; justify-content:space-between; align-items:flex-start;
+      margin-bottom:16px; padding-top:12px;
+    }
+    .topbar-left  { display:flex; flex-direction:column; gap:6px; }
+    .topbar-title { font-family:var(--mono); font-size:0.68rem; color:var(--muted); text-transform:uppercase; letter-spacing:2px; }
+    .online-pill  { display:flex; align-items:center; gap:5px; }
+    .shift-dot    { width:6px; height:6px; border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green); animation:pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .online-text  { font-family:var(--mono); font-size:0.62rem; color:var(--muted); }
+
+    .clock-block  { text-align:right; }
+    .clock-line   { display:flex; align-items:baseline; justify-content:flex-end; gap:3px; }
+    .clock        { font-family:var(--mono); font-size:1.45rem; font-weight:700; color:var(--text); letter-spacing:2px; line-height:1; }
+    .clock-ampm   { font-family:var(--mono); font-size:0.72rem; color:var(--blue); font-weight:700; }
+    .clock-date   { font-size:0.72rem; color:var(--muted); margin-top:4px; }
+
+    .shift-bar {
+      width:100%; max-width:420px;
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:10px; padding:10px 14px;
+      display:flex; justify-content:space-between; align-items:center;
+      margin-bottom:14px; font-family:var(--mono); font-size:0.72rem;
+    }
+    .shift-item  { display:flex; flex-direction:column; gap:2px; }
+    .shift-label { color:var(--muted); font-size:0.58rem; text-transform:uppercase; letter-spacing:1px; }
+    .shift-value { color:var(--text); }
+
+    .checklist {
+      width:100%; max-width:420px;
+      display:flex; gap:8px; margin-bottom:14px;
+    }
+    .check-item {
+      flex:1; padding:8px 10px;
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:10px; display:flex; flex-direction:column;
+      align-items:center; gap:4px;
+      font-family:var(--mono); font-size:0.6rem;
+      color:var(--muted); text-transform:uppercase; letter-spacing:1px;
+      transition:border-color 0.3s;
+    }
+    .check-item.ok    { border-color:var(--green); color:var(--green); }
+    .check-item.fail  { border-color:var(--red);   color:var(--red); }
+    .check-item.wait  { border-color:var(--amber);  color:var(--amber); }
+    .check-icon       { font-size:1rem; }
+
+    .card {
+      width:100%; max-width:420px;
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:14px; padding:16px; margin-bottom:12px;
+    }
+    .card-label {
+      font-family:var(--mono); font-size:0.62rem;
+      color:var(--muted); text-transform:uppercase;
+      letter-spacing:1.5px; margin-bottom:10px;
+    }
+
+    .select-wrap { position:relative; }
+    .select-wrap::after {
+      content:'▾'; position:absolute; right:14px; top:50%;
+      transform:translateY(-50%); color:var(--muted); pointer-events:none; font-size:1rem;
+    }
+    .select-wrap select {
+      width:100%; padding:12px 36px 12px 14px;
+      background:var(--surface2); border:1px solid var(--border);
+      border-radius:10px; color:var(--text); font-family:var(--sans);
+      font-size:0.95rem; outline:none; appearance:none; -webkit-appearance:none;
+      cursor:pointer; transition:border-color 0.2s;
+    }
+    .select-wrap select:focus   { border-color:var(--blue); }
+    .select-wrap select option  { background:#1a1a2e; color:var(--text); }
+    .select-wrap select:disabled{ opacity:0.5; }
+
+    .emp-status {
+      font-family:var(--mono); font-size:0.65rem;
+      color:var(--muted); margin-top:7px;
+      display:flex; align-items:center; gap:6px; min-height:18px;
+    }
+    .emp-reload {
+      margin-left:auto; background:none; border:none;
+      color:var(--blue); font-family:var(--mono);
+      font-size:0.62rem; cursor:pointer; text-decoration:underline; padding:0;
+    }
+    .mini-spin {
+      width:10px; height:10px;
+      border:1.5px solid var(--border); border-top-color:var(--blue);
+      border-radius:50%; animation:spin 0.7s linear infinite; flex-shrink:0;
+    }
+
+    .cam-wrap {
+      width:100%; aspect-ratio:1/1;
+      border-radius:10px; overflow:hidden; background:#000;
+      position:relative; margin-bottom:10px; border:2px solid var(--border);
+      transition:border-color 0.3s;
+    }
+    .cam-wrap.photo-ok { border-color:var(--green); }
+    .cam-wrap video    { width:100%; height:100%; object-fit:cover; transform:scaleX(-1); display:block; }
+    .cam-wrap img#photo-preview { width:100%; height:100%; object-fit:cover; display:none; border-radius:10px; }
+    .cam-overlay {
+      position:absolute; bottom:0; left:0; right:0; padding:8px;
+      background:linear-gradient(transparent,rgba(0,0,0,0.6));
+      font-family:var(--mono); font-size:0.65rem; color:rgba(255,255,255,0.5); text-align:center;
+    }
+    #canvas { display:none; }
+
+    .gps-line {
+      font-family:var(--mono); font-size:0.65rem;
+      color:var(--muted); text-align:center; margin-top:6px; min-height:16px;
+    }
+    .gps-line.gps-ok   { color:var(--green); }
+    .gps-line.gps-fail { color:var(--red); }
+    .gps-line.gps-wait { color:var(--amber); }
+
+    .btn {
+      width:100%; padding:13px; border-radius:10px; border:none;
+      font-family:var(--mono); font-size:0.8rem; font-weight:700;
+      letter-spacing:1px; text-transform:uppercase; cursor:pointer;
+      transition:opacity 0.15s, transform 0.1s; margin-top:8px;
+    }
+    .btn:active:not(:disabled) { transform:scale(0.97); opacity:0.85; }
+    .btn:disabled { opacity:0.3; cursor:not-allowed; }
+    .btn-capture  { background:var(--blue);     color:#000; }
+    .btn-retake   { background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
+    .btn-checkin  { background:var(--green);    color:#000; }
+    .btn-checkout { background:var(--red);      color:#fff; }
+
+    .action-row      { display:flex; gap:10px; }
+    .action-row .btn { flex:1; }
+
+    .status-box {
+      border-radius:10px; padding:12px 14px;
+      font-size:0.82rem; line-height:1.6;
+      margin-top:10px; display:none;
+      font-family:var(--sans); white-space:pre-line;
+    }
+    .status-box.show { display:block; }
+    .s-success { background:rgba(34,197,94,0.1);  border:1px solid rgba(34,197,94,0.3);  color:#4ade80; }
+    .s-error   { background:rgba(239,68,68,0.1);  border:1px solid rgba(239,68,68,0.3);  color:#f87171; }
+    .s-warning { background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); color:#fbbf24; }
+    .s-info    { background:rgba(61,142,248,0.1); border:1px solid rgba(61,142,248,0.3); color:#60a5fa; }
+
+    .loading-row {
+      display:none; align-items:center; justify-content:center;
+      gap:8px; padding:12px; font-family:var(--mono); font-size:0.72rem; color:var(--muted);
+    }
+    .loading-row.show { display:flex; }
+    .spinner {
+      width:14px; height:14px;
+      border:2px solid var(--border); border-top-color:var(--blue);
+      border-radius:50%; animation:spin 0.7s linear infinite;
+    }
+    @keyframes spin { to{transform:rotate(360deg)} }
+
+    .footer {
+      margin-top:20px; font-family:var(--mono);
+      font-size:0.58rem; color:var(--muted); text-align:center; line-height:1.9;
+    }
+    .footer .brand { color:var(--blue); }
+  </style>
+</head>
+
+<body>
+
+  <div class="logo-header">
+    <img src="logo.png" alt="VirtuTech EG" />
+  </div>
+
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-title">Field Attendance</div>
+      <div class="online-pill">
+        <div class="shift-dot"></div>
+        <span class="online-text">System Online</span>
+      </div>
+    </div>
+    <div class="clock-block">
+      <div class="clock-line">
+        <span class="clock" id="clock">12:00:00</span>
+        <span class="clock-ampm" id="ampm">AM</span>
+      </div>
+      <div class="clock-date" id="clock-date">---</div>
+    </div>
+  </div>
+
   <!-- Shift Bar — filled dynamically from sheet -->
   <div class="shift-bar">
     <div class="shift-item">
